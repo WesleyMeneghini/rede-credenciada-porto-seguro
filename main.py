@@ -1,8 +1,9 @@
 from src.config import webBrowser
+from src.site import index
 
 
 if __name__ == '__main__':
     driver = webBrowser.browser()
-    driver.get("https://www.portoseguro.com.br/porto-seguro-saude/rede-referenciada")
-    driver.close()
+    index.navegacao(driver=driver)
+    # driver.close()
 
