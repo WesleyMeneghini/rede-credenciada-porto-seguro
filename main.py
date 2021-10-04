@@ -1,9 +1,9 @@
 from src.config import webBrowser
-from src.site import index
+from src.site import app
 
 
 if __name__ == '__main__':
     driver = webBrowser.browser()
-    index.navegacao(driver=driver)
-    # driver.close()
+    app.navegacao(driver=driver)
+    driver.close()
 

@@ -1,21 +1,29 @@
-import re
-import time
-
+import requests
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
+
+from src.db.conexao import myConexao
+from src.refactor.refactorName import refactorEspecialidade, refactorTipoServico
+from src.site.redeCredenciada import redeCredenciada
+
+conn = myConexao()
+cursor = conn.cursor()
 
 
 def navegacao(driver: webdriver.Chrome):
 
     driver.get("https://wwws.portoseguro.com.br/gerenciadorinterfaceweb/saude_rede_referenciada.do")
 
-    estadoValueId = 0
+    idEstado = 0
+    idCidade = 0
+    idRede = 0
+    idTipoServico = 0
+
     cidadeValueId = 0
     planoValueId = 0
     tipoServicoValueId = 0
-    especialidadeValueId = 0
 
     try:
         WebDriverWait(driver, 10).until(
@@ -43,7 +51,12 @@ def navegacao(driver: webdriver.Chrome):
         if estadoElement.text == "SP":
             estadoValueId = estadoElement.get_attribute('value')
             estadoElement.click()
-            print(f"UF: {estadoElement.text}")
+            nomeUf = estadoElement.text.upper()
+            print(f"UF: {nomeUf}")
+
+            selectUf = f"select * from tbl_estado where uf like '{nomeUf}'"
+            cursor.execute(selectUf)
+            idEstado = cursor.fetchone()[0]
 
     print("Selecionando cidades!")
     try:
@@ -59,7 +72,13 @@ def navegacao(driver: webdriver.Chrome):
         if cidadeElement.text == "SAO PAULO":
             cidadeValueId = cidadeElement.get_attribute('value')
             cidadeElement.click()
-            print(f"Cidade: {cidadeElement.text}")
+            nomeCidade = cidadeElement.text.upper()
+            print(f"Cidade: {nomeCidade}")
+
+            selectCidade = f"select * from tbl_cidade where nome like '{nomeCidade}'"
+            cursor.execute(selectCidade)
+            idCidade = cursor.fetchone()[0]
+
 
     print("Selecionando: Tipo Plano!")
     try:
@@ -72,14 +91,19 @@ def navegacao(driver: webdriver.Chrome):
     planos = driver.find_element_by_id('comboPlanos').find_elements_by_tag_name('option')
     del[planos[0]]
     for planoElement in planos:
-        if planoElement.text == "BRONZE I":
+        if planoElement.text == "SAUDE MAIS PULSAR":
             planoValueId = planoElement.get_attribute('value')
             planoElement.click()
-            print(f"Nome Plano: {planoElement.text}")
+            nomeTipoPlano = planoElement.text
+            print(f"Nome Plano: {nomeTipoPlano}")
+
+            selectRede = f"select * from tbl_rede where nome like '{nomeTipoPlano}' and id_operadora = 11"
+            cursor.execute(selectRede)
+            idRede = cursor.fetchone()[0]
 
     print("Selecionando: Tipo de Serviço!")
     try:
-        WebDriverWait(driver, 10).until(
+        WebDriverWait(driver, 15).until(
             EC.presence_of_element_located(
                 (By.ID, 'comboServicos'))
         )
@@ -91,7 +115,13 @@ def navegacao(driver: webdriver.Chrome):
         if tipoServicoElement.text == "CONSULTÓRIOS MÉDICOS E CLÍNICAS ESPECIALIZADAS":
             tipoServicoValueId = tipoServicoElement.get_attribute('value')
             tipoServicoElement.click()
-            print(f"Tipo Serviço: {tipoServicoElement.text}")
+
+            print(f"Tipo Serviço: {nomeTipoServico}")
+            nomeTipoServico = refactorTipoServico(tipoServicoElement.text)
+
+            selectTipoServico = f"select * from tbl_tipo_servico where nome like '{nomeTipoServico}';"
+            cursor.execute(selectTipoServico)
+            idTipoServico = cursor.fetchone()[0]
 
     print("Selecionando: Especialidade!")
     try:
@@ -114,81 +144,44 @@ def navegacao(driver: webdriver.Chrome):
         if especialidadeElement.text != "":
             especialidadeValueId = especialidadeElement.get_attribute('value')
             especialidadeElement.click()
-            print(f"Especialidade: {especialidadeElement.text}")
 
+            print(f"Especialidade: {nomeEspecialidade}")
+            nomeEspecialidade = refactorEspecialidade(especialidadeElement.text)
 
+            selectEspecialidade = f"select * from tbl_especialidade where nome like '{nomeEspecialidade}';"
+            cursor.execute(selectEspecialidade)
+            idEspecialidade = cursor.fetchone()[0]
 
+            payload = f"""
+            <soap:Envelope
+                xmlns:soap="http://www.w3.org/2003/05/soap-envelope"
+                xmlns:tem="http://tempuri.org/">
+                <soap:Header/>
+                <soap:Body>
+                    <tem:ListarPrestadoresGIW>
+                        <tem:rede>1</tem:rede>
+                        <tem:cidadeID>{cidadeValueId}</tem:cidadeID>
+                        <tem:planoID>{planoValueId}</tem:planoID>
+                        <tem:tipoServicoID>{tipoServicoValueId}</tem:tipoServicoID>
+                        <tem:especialidadeID>{especialidadeValueId}</tem:especialidadeID>
+                        <tem:tipoBusca>1</tem:tipoBusca>
+                        <tem:situacao>1</tem:situacao>
+                    </tem:ListarPrestadoresGIW>
+                </soap:Body>
+            </soap:Envelope>
+            """
 
-            # print("Buscando Rede...")
-            # time.sleep(0.5)
-            # driver.find_element_by_id('consultarRedeCredenciada').click()
-            #
-            # # Frame com os resultados
-            # # time.sleep(1)
-            #
-            # linkIframe = driver.find_element_by_id('frameListaRedeCredenciada').get_attribute('src')
-            # print(linkIframe)
-            # breakpoint()
-            # driver.switch_to.frame(driver.find_element_by_id('frameListaRedeCredenciada'))
-            #
-            # try:
-            #     WebDriverWait(driver, 15).until(
-            #         EC.presence_of_element_located(
-            #             (By.CLASS_NAME, 'ps-map-list__item'))
-            #     )
-            # finally:
-            #     time.sleep(1)
-            #     listaPrestadoresLi = driver.find_elements_by_class_name('ps-map-list__item')
-            #
-            #     print(len(listaPrestadoresLi))
-                # for p, prestador in enumerate(listaPrestadoresLi):
-                #
-                #     if p > 0:
-                #         driver.switch_to.frame(driver.find_element_by_id('frameListaRedeCredenciada'))
-                #         time.sleep(0.5)
-                #
-                #     try:
-                #         WebDriverWait(driver, 15).until(
-                #             EC.presence_of_element_located(
-                #                 (By.CLASS_NAME, 'ps-map-list__item'))
-                #         )
-                #     finally:
-                #         while len(driver.find_elements_by_class_name('ps-map-list__item')) == 0:
-                #             ...
-                #     driver.find_elements_by_class_name('ps-map-list__item')[p+1].find_element_by_tag_name('a').click()
-                #
-                #     driver.switch_to.default_content()
-                #     time.sleep(1)
-                #     try:
-                #         WebDriverWait(driver, 15).until(
-                #             EC.presence_of_element_located(
-                #                 (By.XPATH, '//*[@id="incluirConteudo"]/iframe'))
-                #         )
-                #     finally:
-                #         pass
-                #         time.sleep(2)
-                #     driver.switch_to.frame(driver.find_element_by_xpath('//*[@id="incluirConteudo"]/iframe'))
-                #     try:
-                #         WebDriverWait(driver, 15).until(
-                #             EC.presence_of_element_located(
-                #                 (By.CLASS_NAME, 'ps-text-light'))
-                #         )
-                #     finally:
-                #         pass
-                #     time.sleep(1)
-                #     res = driver.find_elements_by_class_name("ps-text-light")
-                #     print("\n-------------------")
-                #     print(res[0].text)
-                #     print(res[1].text)
-                #     print(res[2].text)
-                #     print(res[3].text)
-                #
-                #     driver.switch_to.default_content()
-                #     time.sleep(1)
-                #     driver.execute_script("document.getElementsByClassName('ps-modal-close ps-modal-close-default')[0].click()")
-                #     time.sleep(1)
+            url = "https://wwws.portoseguro.com.br/gerenciadorinterfaceweb/mapas_Acd.content"
+            querystring = {"tipo": "redeReferenciada"}
+            response = requests.request("POST", url, data=payload, params=querystring)
 
-
-                # print("Voltando a tela de pesquisa!")
-                # driver.execute_script("javascript:clickButtonVoltarRede();")
+            # Obs: Os Campos abaixo com valores dos Ids, ja sao em relaçao ao banco de dados do sistema
+            redeCredenciada(
+                xml=response.text,
+                idEstado=idEstado,
+                idCidade=idCidade,
+                idRede=idRede,
+                idTipoServico=idTipoServico,
+                idEspecialidade=idEspecialidade
+            )
 
