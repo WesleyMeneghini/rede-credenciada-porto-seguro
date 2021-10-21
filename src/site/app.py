@@ -112,12 +112,12 @@ def navegacao(driver: webdriver.Chrome):
     tipoServicos = driver.find_element_by_id('comboServicos').find_elements_by_tag_name('option')
     del [tipoServicos[0]]
     for tipoServicoElement in tipoServicos:
-        if tipoServicoElement.text == "CONSULTÓRIOS MÉDICOS E CLÍNICAS ESPECIALIZADAS":
+        if tipoServicoElement.text.strip() == "PRONTOS SOCORROS (URGÊNCIA/EMERGÊNCIA)":
             tipoServicoValueId = tipoServicoElement.get_attribute('value')
             tipoServicoElement.click()
 
-            print(f"Tipo Serviço: {nomeTipoServico}")
             nomeTipoServico = refactorTipoServico(tipoServicoElement.text)
+            print(f"\nTipo Serviço: {nomeTipoServico}\n")
 
             selectTipoServico = f"select * from tbl_tipo_servico where nome like '{nomeTipoServico}';"
             cursor.execute(selectTipoServico)
@@ -145,43 +145,50 @@ def navegacao(driver: webdriver.Chrome):
             especialidadeValueId = especialidadeElement.get_attribute('value')
             especialidadeElement.click()
 
-            print(f"Especialidade: {nomeEspecialidade}")
             nomeEspecialidade = refactorEspecialidade(especialidadeElement.text)
+            print(f"Especialidade: {nomeEspecialidade}")
 
             selectEspecialidade = f"select * from tbl_especialidade where nome like '{nomeEspecialidade}';"
             cursor.execute(selectEspecialidade)
-            idEspecialidade = cursor.fetchone()[0]
+            if cursor.rowcount == 0:
+                insertEspecialidade = f"INSERT INTO tbl_especialidade(nome) VALUES ('{nomeEspecialidade}');"
+                cursor.execute(insertEspecialidade)
+                idEspecialidade = conn.insert_id()
+                conn.commit()
+            else:
+                idEspecialidade = cursor.fetchone()[0]
 
-            payload = f"""
-            <soap:Envelope
-                xmlns:soap="http://www.w3.org/2003/05/soap-envelope"
-                xmlns:tem="http://tempuri.org/">
-                <soap:Header/>
-                <soap:Body>
-                    <tem:ListarPrestadoresGIW>
-                        <tem:rede>1</tem:rede>
-                        <tem:cidadeID>{cidadeValueId}</tem:cidadeID>
-                        <tem:planoID>{planoValueId}</tem:planoID>
-                        <tem:tipoServicoID>{tipoServicoValueId}</tem:tipoServicoID>
-                        <tem:especialidadeID>{especialidadeValueId}</tem:especialidadeID>
-                        <tem:tipoBusca>1</tem:tipoBusca>
-                        <tem:situacao>1</tem:situacao>
-                    </tem:ListarPrestadoresGIW>
-                </soap:Body>
-            </soap:Envelope>
-            """
+            if idEspecialidade is not None:
+                payload = f"""
+                <soap:Envelope
+                    xmlns:soap="http://www.w3.org/2003/05/soap-envelope"
+                    xmlns:tem="http://tempuri.org/">
+                    <soap:Header/>
+                    <soap:Body>
+                        <tem:ListarPrestadoresGIW>
+                            <tem:rede>1</tem:rede>
+                            <tem:cidadeID>{cidadeValueId}</tem:cidadeID>
+                            <tem:planoID>{planoValueId}</tem:planoID>
+                            <tem:tipoServicoID>{tipoServicoValueId}</tem:tipoServicoID>
+                            <tem:especialidadeID>{especialidadeValueId}</tem:especialidadeID>
+                            <tem:tipoBusca>1</tem:tipoBusca>
+                            <tem:situacao>1</tem:situacao>
+                        </tem:ListarPrestadoresGIW>
+                    </soap:Body>
+                </soap:Envelope>
+                """
 
-            url = "https://wwws.portoseguro.com.br/gerenciadorinterfaceweb/mapas_Acd.content"
-            querystring = {"tipo": "redeReferenciada"}
-            response = requests.request("POST", url, data=payload, params=querystring)
+                url = "https://wwws.portoseguro.com.br/gerenciadorinterfaceweb/mapas_Acd.content"
+                querystring = {"tipo": "redeReferenciada"}
+                response = requests.request("POST", url, data=payload, params=querystring)
 
-            # Obs: Os Campos abaixo com valores dos Ids, ja sao em relaçao ao banco de dados do sistema
-            redeCredenciada(
-                xml=response.text,
-                idEstado=idEstado,
-                idCidade=idCidade,
-                idRede=idRede,
-                idTipoServico=idTipoServico,
-                idEspecialidade=idEspecialidade
-            )
+                # Obs: Os Campos abaixo com valores dos Ids, ja sao em relaçao ao banco de dados do sistema
+                redeCredenciada(
+                    xml=response.text,
+                    idEstado=idEstado,
+                    idCidade=idCidade,
+                    idRede=idRede,
+                    idTipoServico=idTipoServico,
+                    idEspecialidade=idEspecialidade
+                )
 
