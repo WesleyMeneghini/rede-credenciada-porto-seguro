@@ -89,38 +89,41 @@ def redeCredenciada(xml: str, idEstado: int, idCidade: int, idRede: int, idTipoS
                             telefone2 = telefone
 
                     resCep = getViaCep(cep)
-                    if resCep.status_code == 200:
+                    if resCep:
+
                         dados = resCep.json()
-                        logradouroRes = dados['logradouro']
-                        bairroRes = dados['bairro'].upper()
+                        if 'erro' not in dados:
+                            logradouroRes = dados['logradouro']
 
-                        sqlBairro = f"SELECT * from tbl_bairro where nome like '{bairroRes}' and id_cidade = {idCidade};"
-                        # print(sqlBairro)
-                        cursor.execute(sqlBairro)
+                            bairroRes = dados['bairro'].upper()
 
-                        idBairro = None
-                        if cursor.rowcount == 0:
-                            insert = f"insert into tbl_bairro(nome, id_cidade) values('{bairroRes.upper()}', {idCidade}) "
+                            sqlBairro = f"SELECT * from tbl_bairro where nome like '{bairroRes}' and id_cidade = {idCidade};"
+                            # print(sqlBairro)
+                            cursor.execute(sqlBairro)
 
-                            if inserirDados:
-                                cursor.execute(insert)
-                                idBairro = conn.insert_id()
-                                conn.commit()
+                            idBairro = None
+                            if cursor.rowcount == 0:
+                                insert = f"insert into tbl_bairro(nome, id_cidade) values('{bairroRes.upper()}', {idCidade}) "
 
-                        elif cursor.rowcount == 1:
-                            idBairro = cursor.fetchone()[0]
-                        else:
-                            print(cursor.fetchall())
+                                if inserirDados:
+                                    cursor.execute(insert)
+                                    idBairro = conn.insert_id()
+                                    conn.commit()
 
-                        insertEnderecoEstabelecimento = """
-                        INSERT INTO tbl_estabelecimento_endereco 
-                        (id_estabelecimento, cep, complemento, logradouro, numero, id_bairro, id_cidade, id_estado, telefone1, telefone2) VALUES
-                        (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        """
-                        valuesEndereco = (idEstabelecimento, cep, complemento, logradouroRes, numero, idBairro, idBairro, idEstado, telefone1, telefone2)
+                            elif cursor.rowcount == 1:
+                                idBairro = cursor.fetchone()[0]
+                            else:
+                                print(cursor.fetchall())
 
-                        cursor.execute(insertEnderecoEstabelecimento, valuesEndereco)
-                        conn.commit()
+                            insertEnderecoEstabelecimento = """
+                            INSERT INTO tbl_estabelecimento_endereco 
+                            (id_estabelecimento, cep, complemento, logradouro, numero, id_bairro, id_cidade, id_estado, telefone1, telefone2) VALUES
+                            (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            """
+                            valuesEndereco = (idEstabelecimento, cep, complemento, logradouroRes, numero, idBairro, idBairro, idEstado, telefone1, telefone2)
+
+                            cursor.execute(insertEnderecoEstabelecimento, valuesEndereco)
+                            conn.commit()
                     else:
                         print("Erro na consulta ViaCep: ", resCep)
 
